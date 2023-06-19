@@ -1,0 +1,26 @@
+name: linting
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  linting:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: Check-out code
+        uses: actions/checkout@v3
+
+      - name: Install deps
+        uses: npm install
+
+      - name: Check format
+        uses: npm run format:check
+
+      - name: Check lint
+        uses: npm run lint:check
