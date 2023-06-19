@@ -136,7 +136,7 @@ http.listen(8080, async () => {
     let messages = await db
       .collection('messages')
       .find({})
-      .sort({ createdAt: -1 })
+      .sort({ at: -1 })
       .limit(50)
       .toArray()
     if (messages != null) {
@@ -145,7 +145,7 @@ http.listen(8080, async () => {
         let obj = {
           username: messages[i].username,
           message: messages[i].message,
-          createdAt: messages[i].createdAt,
+          at: messages[i].at,
         }
         array.push(obj)
       }
@@ -158,7 +158,7 @@ http.listen(8080, async () => {
         user: user._id,
         username: user.username,
         message: data.toString(),
-        createdAt: now,
+        at: now,
       })
     })
 
@@ -204,7 +204,7 @@ http.listen(8080, async () => {
               data: {
                 username: message.username,
                 message: message.message,
-                createdAt: message.createdAt,
+                at: message.at,
               },
             })
           )
