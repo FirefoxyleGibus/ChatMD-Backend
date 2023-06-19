@@ -21,6 +21,7 @@
 
 require('dotenv').config()
 const app = require('express')()
+const formidable = require('express-formidable')
 const cors = require('cors')
 const argon2 = require('argon2')
 const WebSocket = require('ws')
@@ -31,6 +32,13 @@ const mongo = new mongodb.MongoClient(process.env.DB_ADDRESS, {
 })
 const http = require('http').createServer(app)
 
+app.use(
+  formidable({
+    maxFileSize: 5 * 1024 * 1024,
+    maxFieldsSize: 16 * 1024 * 1024,
+    multiples: true,
+  })
+)
 app.use(cors())
 
 app.set('trust proxy', true)
@@ -47,8 +55,8 @@ http.listen(8080, async () => {
       : null
     if (session != null) return res.status(401).json(returnCode(401, 1))
 
-    let username = req.fields.username
-    let password = req.fields.password
+    let username = req.fields?.username
+    let password = req.fields?.password
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
 
