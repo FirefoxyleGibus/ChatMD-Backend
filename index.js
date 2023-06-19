@@ -32,7 +32,13 @@ const mongo = new mongodb.MongoClient(process.env.DB_ADDRESS, {
 })
 const http = require('http').createServer(app)
 
-app.use(formidable({ maxFileSize: 5 * 1024 * 1024, maxFieldsSize: 16 * 1024 * 1024, multiples: true }));
+app.use(
+  formidable({
+    maxFileSize: 5 * 1024 * 1024,
+    maxFieldsSize: 16 * 1024 * 1024,
+    multiples: true,
+  })
+)
 app.use(cors())
 
 app.set('trust proxy', true)
