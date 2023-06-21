@@ -273,6 +273,16 @@ http.listen(8080, async () => {
           let usr = await db.collection('users').findOne({
             _id: new mongodb.ObjectId(change.documentKey._id),
           })
+
+          // If the user is the same as the one that is connected and the session is null
+          // kill it.
+          if (
+            usr._id.toString() == user._id.toString() &&
+            usr.session == null
+          ) {
+            ws.send(JSON.stringify({ type: 'logout' }))
+            return ws.terminate()
+          }
           ws.send(
             JSON.stringify({
               type: 'event',
