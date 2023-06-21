@@ -117,6 +117,84 @@ http.listen(8080, async () => {
     res.status(200).json(returnCode(200, 200, { session: token }))
   })
 
+  // [PUT] Update username
+  app.put('/account/update/username', async (req, res) => {
+    let session = req.headers.authorization
+      ? req.headers.authorization.split(' ')[1].trim()
+      : null
+    if (session == null) return res.status(401).json(returnCode(401, 0))
+
+    let new_username = req.fields.username
+
+    let usr = await db.collection('users').findOne({
+      session: session,
+    })
+    if (usr == null) return res.status(401).json(returnCode(401, 0))
+
+    let checkUser = await db.collection('users').findOne({
+      username: new_username,
+    })
+    if (checkUser != null)
+      return res.status(401).json(returnCode(401, 'Username already taken'))
+
+    // Updates the account name
+    await db.collection('users').findOneAndUpdate(
+      {
+        session: session,
+      },
+      {
+        $set: {
+          username: new_username,
+        },
+      }
+    )
+
+    // Updates the messages
+    await db.collection('messages').updateMany(
+      {
+        user: usr._id,
+      },
+      {
+        $set: {
+          username: new_username,
+        },
+      }
+    )
+
+    res.status(200).json(returnCode(200, 200))
+  })
+
+  // [DELETE] Logout
+  app.delete('/auth/logout', async (req, res) => {
+    let session = req.headers.authorization
+      ? req.headers.authorization.split(' ')[1].trim()
+      : null
+    if (session == null) return res.status(401).json(returnCode(401, 0))
+
+    let usr = await db.collection('users').findOne({
+      session: session,
+    })
+    if (usr == null) return res.status(401).json(returnCode(401, 0))
+
+    await db.collection('users').findOneAndUpdate(
+      {
+        session: session,
+      },
+      {
+        $set: {
+          session: null,
+          active: false,
+        },
+      }
+    )
+
+    res.status(200).json(returnCode(200, 200))
+  })
+
+  app.all('*', (_, res) => {
+    res.status(404).json(returnCode(404, 'you got lost man :/'))
+  })
+
   // WebSocket
   wss.on('connection', async (ws, req) => {
     let token = req.headers['authorization']
