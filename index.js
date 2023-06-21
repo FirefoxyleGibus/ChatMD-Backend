@@ -67,7 +67,9 @@ http.listen(8080, async () => {
     if (user != null) return res.status(418).json(returnCode(418, 10))
 
     const hash = await argon2.hash(password)
-    let token = require('crypto').randomBytes(64).toString('hex')
+
+    let token = generateToken()
+
     await db.collection('users').insertOne({
       username: username,
       password: hash,
@@ -99,7 +101,8 @@ http.listen(8080, async () => {
     const verify = await argon2.verify(user.password, password)
     if (!verify) return res.status(401).json(returnCode(401, 11))
 
-    let token = require('crypto').randomBytes(64).toString('hex')
+    let token = generateToken()
+
     await db.collection('users').findOneAndUpdate(
       {
         username: username,
@@ -203,6 +206,7 @@ http.listen(8080, async () => {
           )
         }
       }
+
       if (change.operationType == 'insert') {
         if (change.ns.coll == 'messages') {
           let message = change.fullDocument
@@ -259,4 +263,8 @@ function returnCode(code, messageId, json) {
       data: json,
     }
   }
+}
+
+function generateToken() {
+  return require('crypto').randomBytes(64).toString('hex')
 }
