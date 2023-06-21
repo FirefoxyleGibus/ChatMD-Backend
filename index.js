@@ -51,7 +51,7 @@ http.listen(8080, async () => {
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
     let session = req.headers.authorization
-      ? req.headers.authorization.substr(7, Infinity)
+      ? req.headers.authorization.split(' ')[1].trim()
       : null
     if (session != null) return res.status(401).json(returnCode(401, 1))
 
@@ -83,7 +83,7 @@ http.listen(8080, async () => {
   // [POST] Login
   app.post('/auth/login', async (req, res) => {
     let session = req.headers.authorization
-      ? req.headers.authorization.substr(7, Infinity)
+      ? req.headers.authorization.split(' ')[1].trim()
       : null
     if (session != null) return res.status(401).json(returnCode(401, 1))
 
