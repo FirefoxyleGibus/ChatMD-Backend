@@ -173,7 +173,6 @@ http.listen(8080, async () => {
       })
     })
 
-    //yeah
     ws.on('close', async () => {
       await db.collection('users').findOneAndUpdate(
         {
@@ -188,6 +187,8 @@ http.listen(8080, async () => {
       ws.terminate()
     })
 
+    // This part should be at the end because the
+    // this loop is blocking the thread and is "infinite" (until connection is closed)
     for await (const change of awaitDB) {
       if (change.operationType == 'update') {
         if (change.ns.coll == 'users') {
