@@ -55,8 +55,8 @@ http.listen(8080, async () => {
       : null
     if (session != null) return res.status(401).json(returnCode(401, 1))
 
-    let username = req.fields?.username
-    let password = req.fields?.password
+    let username = req.fields.username
+    let password = req.fields.password
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
 
