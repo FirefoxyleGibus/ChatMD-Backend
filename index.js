@@ -51,12 +51,12 @@ http.listen(8080, async () => {
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
     let session = req.headers.authorization
-      ? req.headers.authorization.substr(7, Infinity)
+      ? req.headers.authorization.split(' ')[1].trim()
       : null
     if (session != null) return res.status(401).json(returnCode(401, 1))
 
-    let username = req.fields?.username
-    let password = req.fields?.password
+    let username = req.fields.username
+    let password = req.fields.password
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
 
@@ -67,7 +67,9 @@ http.listen(8080, async () => {
     if (user != null) return res.status(418).json(returnCode(418, 10))
 
     const hash = await argon2.hash(password)
-    let token = require('crypto').randomBytes(64).toString('hex')
+
+    let token = generateToken()
+
     await db.collection('users').insertOne({
       username: username,
       password: hash,
@@ -81,7 +83,7 @@ http.listen(8080, async () => {
   // [POST] Login
   app.post('/auth/login', async (req, res) => {
     let session = req.headers.authorization
-      ? req.headers.authorization.substr(7, Infinity)
+      ? req.headers.authorization.split(' ')[1].trim()
       : null
     if (session != null) return res.status(401).json(returnCode(401, 1))
 
@@ -99,7 +101,8 @@ http.listen(8080, async () => {
     const verify = await argon2.verify(user.password, password)
     if (!verify) return res.status(401).json(returnCode(401, 11))
 
-    let token = require('crypto').randomBytes(64).toString('hex')
+    let token = generateToken()
+
     await db.collection('users').findOneAndUpdate(
       {
         username: username,
@@ -112,6 +115,84 @@ http.listen(8080, async () => {
     )
 
     res.status(200).json(returnCode(200, 200, { session: token }))
+  })
+
+  // [PUT] Update username
+  app.put('/account/update/username', async (req, res) => {
+    let session = req.headers.authorization
+      ? req.headers.authorization.split(' ')[1].trim()
+      : null
+    if (session == null) return res.status(401).json(returnCode(401, 0))
+
+    let new_username = req.fields.username
+
+    let usr = await db.collection('users').findOne({
+      session: session,
+    })
+    if (usr == null) return res.status(401).json(returnCode(401, 0))
+
+    let checkUser = await db.collection('users').findOne({
+      username: new_username,
+    })
+    if (checkUser != null)
+      return res.status(401).json(returnCode(401, 'Username already taken'))
+
+    // Updates the account name
+    await db.collection('users').findOneAndUpdate(
+      {
+        session: session,
+      },
+      {
+        $set: {
+          username: new_username,
+        },
+      }
+    )
+
+    // Updates the messages
+    await db.collection('messages').updateMany(
+      {
+        user: usr._id,
+      },
+      {
+        $set: {
+          username: new_username,
+        },
+      }
+    )
+
+    res.status(200).json(returnCode(200, 200))
+  })
+
+  // [DELETE] Logout
+  app.delete('/auth/logout', async (req, res) => {
+    let session = req.headers.authorization
+      ? req.headers.authorization.split(' ')[1].trim()
+      : null
+    if (session == null) return res.status(401).json(returnCode(401, 0))
+
+    let usr = await db.collection('users').findOne({
+      session: session,
+    })
+    if (usr == null) return res.status(401).json(returnCode(401, 0))
+
+    await db.collection('users').findOneAndUpdate(
+      {
+        session: session,
+      },
+      {
+        $set: {
+          session: null,
+          active: false,
+        },
+      }
+    )
+
+    res.status(200).json(returnCode(200, 200))
+  })
+
+  app.all('*', (_, res) => {
+    res.status(404).json(returnCode(404, 'you got lost man :/'))
   })
 
   // WebSocket
@@ -170,7 +251,6 @@ http.listen(8080, async () => {
       })
     })
 
-    //yeah
     ws.on('close', async () => {
       await db.collection('users').findOneAndUpdate(
         {
@@ -185,12 +265,24 @@ http.listen(8080, async () => {
       ws.terminate()
     })
 
+    // This part should be at the end because the
+    // this loop is blocking the thread and is "infinite" (until connection is closed)
     for await (const change of awaitDB) {
       if (change.operationType == 'update') {
         if (change.ns.coll == 'users') {
           let usr = await db.collection('users').findOne({
             _id: new mongodb.ObjectId(change.documentKey._id),
           })
+
+          // If the user is the same as the one that is connected and the session is null
+          // kill it.
+          if (
+            usr._id.toString() == user._id.toString() &&
+            usr.session == null
+          ) {
+            ws.send(JSON.stringify({ type: 'logout' }))
+            return ws.terminate()
+          }
           ws.send(
             JSON.stringify({
               type: 'event',
@@ -203,6 +295,7 @@ http.listen(8080, async () => {
           )
         }
       }
+
       if (change.operationType == 'insert') {
         if (change.ns.coll == 'messages') {
           let message = change.fullDocument
@@ -259,4 +352,8 @@ function returnCode(code, messageId, json) {
       data: json,
     }
   }
+}
+
+function generateToken() {
+  return require('crypto').randomBytes(64).toString('hex')
 }
