@@ -47,6 +47,7 @@ app.set('trust proxy', true)
 http.listen(Number(process.env.HTTP_PORT), async () => {
   const client = await mongo.connect()
   const db = client.db(process.env.DB_NAME)
+  const awaitDB = db.watch()
 
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
@@ -221,7 +222,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         },
       }
     )
-    let awaitDB = db.watch()
+    ///
     let messages = await db
       .collection('messages')
       .find({})
