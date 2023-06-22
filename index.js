@@ -25,8 +25,10 @@ const formidable = require('express-formidable')
 const cors = require('cors')
 const argon2 = require('argon2')
 const WebSocket = require('ws')
-const wss = new WebSocket.Server({ port: 8081 })
+const wss = new WebSocket.Server({ port: process.env.WS_PORT })
 const mongodb = require('mongodb')
+const { clearInterval } = require('timers')
+const { trim } = require('lodash')
 const mongo = new mongodb.MongoClient(process.env.DB_ADDRESS, {
   useNewUrlParser: true,
 })
@@ -44,9 +46,10 @@ app.use(cors())
 app.set('trust proxy', true)
 
 // Listen to HTTP
-http.listen(8080, async () => {
+http.listen(Number(process.env.HTTP_PORT), async () => {
   const client = await mongo.connect()
-  const db = client.db('chatmd-dev')
+  const db = client.db(process.env.DB_NAME)
+  const awaitDB = db.watch()
 
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
@@ -59,6 +62,10 @@ http.listen(8080, async () => {
     let password = req.fields.password
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
+
+    username = trim(username)
+    if (username.length == 0)
+      return res.status(401).json(returnCode(401, 'Username cannot be empty'))
 
     let user = await db.collection('users').findOne({
       username: username,
@@ -91,6 +98,10 @@ http.listen(8080, async () => {
     let password = req.fields.password
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
+
+    username = trim(username)
+    if (username.length == 0)
+      return res.status(401).json(returnCode(401, 'Username cannot be empty'))
 
     let user = await db.collection('users').findOne({
       username: username,
@@ -125,6 +136,10 @@ http.listen(8080, async () => {
     if (session == null) return res.status(401).json(returnCode(401, 0))
 
     let new_username = req.fields.username
+
+    new_username = trim(new_username)
+    if (new_username.length == 0)
+      return res.status(401).json(returnCode(401, 'Username cannot be empty'))
 
     let usr = await db.collection('users').findOne({
       session: session,
@@ -197,6 +212,7 @@ http.listen(8080, async () => {
 
   // WebSocket
   wss.on('connection', async (ws, req) => {
+    /// Connection part
     let token = req.headers['authorization']
       ? req.headers['authorization'].split(' ')[1].trim()
       : null
@@ -221,37 +237,75 @@ http.listen(8080, async () => {
         },
       }
     )
-    let awaitDB = db.watch()
+    ///
+    let pingTime = Date.now()
+    let pingInterval = setInterval(() => {
+      ws.ping()
+      pingTime = Date.now()
+    }, Number(process.env.PING_INTERVAL) * 1000)
+
+    ws.on('pong', () => {
+      let latency = Date.now() - pingTime
+      ws.send(JSON.stringify({ type: 'latency', latency_ms: latency }))
+    })
+
     let messages = await db
       .collection('messages')
       .find({})
       .sort({ at: -1 })
       .limit(50)
       .toArray()
-    if (messages != null) {
-      let array = new Array()
-      for (let i = 0; i < messages.length; i++) {
-        let obj = {
+    let onlinePeople = await db
+      .collection('users')
+      .find({ active: true })
+      .toArray()
+
+    let arrayMessage = new Array()
+    let arrayOnline = new Array()
+    for (let i = 0; i < messages.length; i++) {
+      let obj
+      if (messages[i].type == 'message') {
+        obj = {
           username: messages[i].username,
+          type: 'message',
           message: messages[i].message,
           at: messages[i].at,
         }
-        array.push(obj)
+      } else if (messages[i].type == 'event') {
+        obj = {
+          username: messages[i].username,
+          event: messages[i].data,
+          at: messages[i].at,
+          type: 'event',
+        }
       }
-      ws.send(JSON.stringify(array))
+      arrayMessage.push(obj)
     }
+    for (let i = 0; i < onlinePeople.length; i++) {
+      let obj = {
+        username: onlinePeople[i].username,
+      }
+      arrayOnline.push(obj)
+    }
+    ws.send(JSON.stringify({ online: arrayOnline, messages: arrayMessage }))
 
     ws.on('message', async (data) => {
-      let now = Date.now()
-      await db.collection('messages').insertOne({
-        user: user._id,
-        username: user.username,
-        message: data.toString(),
-        at: now,
-      })
+      data = trim(data)
+      if (data.length != 0) {
+        let now = Date.now()
+        await db.collection('messages').insertOne({
+          user: user._id,
+          username: user.username,
+          type: 'message',
+          data: null,
+          message: data.toString(),
+          at: now,
+        })
+      }
     })
 
     ws.on('close', async () => {
+      clearInterval(pingInterval)
       await db.collection('users').findOneAndUpdate(
         {
           session: token,
@@ -265,17 +319,17 @@ http.listen(8080, async () => {
       ws.terminate()
     })
 
-    // This part should be at the end because the
-    // this loop is blocking the thread and is "infinite" (until connection is closed)
-    for await (const change of awaitDB) {
+    awaitDB.on('change', async (change) => {
       if (change.operationType == 'update') {
         if (change.ns.coll == 'users') {
+          let updatedFields = change.updateDescription.updatedFields
           let usr = await db.collection('users').findOne({
             _id: new mongodb.ObjectId(change.documentKey._id),
           })
 
           // If the user is the same as the one that is connected and the session is null
           // kill it.
+          // Nothing prevents the disconnection when a new token is generated though
           if (
             usr._id.toString() == user._id.toString() &&
             usr.session == null
@@ -283,16 +337,31 @@ http.listen(8080, async () => {
             ws.send(JSON.stringify({ type: 'logout' }))
             return ws.terminate()
           }
-          ws.send(
-            JSON.stringify({
+
+          // Join/Leave event
+          if (updatedFields.active != null) {
+            await db.collection('messages').insertOne({
+              user: usr._id,
+              username: usr.username,
               type: 'event',
-              data: {
-                event: usr.active ? 'Join' : 'Leave',
-                username: usr.username,
-                at: Date.now(),
-              },
+
+              data: usr.active ? 'Join' : 'Leave',
+              message: null,
+              at: Date.now(),
             })
-          )
+            ws.send(
+              JSON.stringify({
+                type: 'event',
+                data: {
+                  event: usr.active ? 'Join' : 'Leave',
+                  username: usr.username,
+                  at: Date.now(),
+                },
+              })
+            )
+          } else if (updatedFields.username != null) {
+            user.username = updatedFields.username
+          }
         }
       }
 
@@ -311,7 +380,7 @@ http.listen(8080, async () => {
           )
         }
       }
-    }
+    })
   })
 })
 
