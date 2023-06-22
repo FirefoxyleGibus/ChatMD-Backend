@@ -198,6 +198,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
 
   // WebSocket
   wss.on('connection', async (ws, req) => {
+    /// Connection part
     let token = req.headers['authorization']
       ? req.headers['authorization'].split(' ')[1].trim()
       : null
@@ -223,6 +224,17 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       }
     )
     ///
+    let pingTime = Date.now()
+    let pingInterval = setInterval(() => {
+      ws.ping()
+      pingTime = Date.now()
+    }, Number(process.env.PING_INTERVAL) * 1000)
+
+    ws.on('pong', () => {
+      let latency = Date.now() - pingTime
+      ws.send(JSON.stringify({ type: 'latency', latency_ms: latency }))
+    })
+
     let messages = await db
       .collection('messages')
       .find({})
@@ -276,6 +288,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     })
 
     ws.on('close', async () => {
+      clearInterval(pingInterval)
       await db.collection('users').findOneAndUpdate(
         {
           session: token,
