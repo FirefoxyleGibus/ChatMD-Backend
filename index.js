@@ -335,8 +335,8 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
   })
 
   for await (const change of awaitDB) {
+    console.log(change.operationType, "\n");
     wss.clients.forEach(async (ws) => {
-      console.log(change.operationType);
       if(ws.readyState === WebSocket.OPEN) {
         if (change.operationType == 'update') {
           if (change.ns.coll == 'users') {
