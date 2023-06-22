@@ -51,8 +51,6 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
   const db = client.db(process.env.DB_NAME)
   const awaitDB = db.watch()
 
-  let userSet = new Set();
-
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
     let session = req.headers.authorization
@@ -240,7 +238,6 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       }
     )
 
-    userSet.add(ws);
     ///
     let pingTime = Date.now()
     let pingInterval = setInterval(() => {
@@ -329,15 +326,14 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         at: Date.now(),
       })
 
-      userSet.delete(ws);
       ws.terminate()
     })
   })
 
+  const clientsReceive = new Set();
   for await (const change of awaitDB) {
-    console.log(change.operationType, "\n");
     wss.clients.forEach(async (ws) => {
-      if(ws.readyState === WebSocket.OPEN) {
+      if(ws.readyState === WebSocket.OPEN && !clientsReceive.has(ws)) {
         if (change.operationType == 'update') {
           if (change.ns.coll == 'users') {
             let updatedFields = change.updateDescription.updatedFields
@@ -370,8 +366,6 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
             }
           }
       }
-      }
-
       if (change.operationType == 'insert') {
         if (change.ns.coll == 'messages') {
           let message = change.fullDocument
@@ -403,7 +397,12 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
           }
         }
       }
+
+      clientsReceive.add(ws);
+    }
     })
+
+    clientsReceive.clear();
   }
 })
 
