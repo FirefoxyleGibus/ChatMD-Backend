@@ -51,6 +51,8 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
   const db = client.db(process.env.DB_NAME)
   const awaitDB = db.watch()
 
+  let userSet = new Set();
+
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
     let session = req.headers.authorization
@@ -237,6 +239,8 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         },
       }
     )
+
+    userSet.add(ws);
     ///
     let pingTime = Date.now()
     let pingInterval = setInterval(() => {
@@ -324,12 +328,14 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         message: null,
         at: Date.now(),
       })
+
+      userSet.delete(ws);
       ws.terminate()
     })
   })
 
   for await (const change of awaitDB) {
-    wss.clients.forEach(async (ws) => {
+    userSet.forEach(async (ws) => {
       if (change.operationType == 'update') {
         if (change.ns.coll == 'users') {
           let updatedFields = change.updateDescription.updatedFields
