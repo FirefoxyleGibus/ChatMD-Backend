@@ -25,7 +25,7 @@ const formidable = require('express-formidable')
 const cors = require('cors')
 const argon2 = require('argon2')
 const WebSocket = require('ws')
-const wss = new WebSocket.Server({ port: 8081 })
+const wss = new WebSocket.Server({ port: process.env.WS_PORT })
 const mongodb = require('mongodb')
 const mongo = new mongodb.MongoClient(process.env.DB_ADDRESS, {
   useNewUrlParser: true,
@@ -44,9 +44,9 @@ app.use(cors())
 app.set('trust proxy', true)
 
 // Listen to HTTP
-http.listen(8080, async () => {
+http.listen(Number(process.env.HTTP_PORT), async () => {
   const client = await mongo.connect()
-  const db = client.db('chatmd-dev')
+  const db = client.db(process.env.DB_NAME)
 
   // [POST] Register
   app.post('/auth/register', async (req, res) => {
