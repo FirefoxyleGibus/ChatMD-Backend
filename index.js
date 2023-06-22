@@ -266,17 +266,17 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       ws.terminate()
     })
 
-    // This part should be at the end because the
-    // this loop is blocking the thread and is "infinite" (until connection is closed)
-    for await (const change of awaitDB) {
+    awaitDB.on('change', async (change) => {
       if (change.operationType == 'update') {
         if (change.ns.coll == 'users') {
+          let updatedFields = change.updateDescription.updatedFields
           let usr = await db.collection('users').findOne({
             _id: new mongodb.ObjectId(change.documentKey._id),
           })
 
           // If the user is the same as the one that is connected and the session is null
           // kill it.
+          // Nothing prevents the disconnection when a new token is generated though
           if (
             usr._id.toString() == user._id.toString() &&
             usr.session == null
@@ -284,16 +284,31 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
             ws.send(JSON.stringify({ type: 'logout' }))
             return ws.terminate()
           }
-          ws.send(
-            JSON.stringify({
+
+          // Join/Leave event
+          if (updatedFields.active != null) {
+            await db.collection('messages').insertOne({
+              user: usr._id,
+              username: usr.username,
               type: 'event',
-              data: {
-                event: usr.active ? 'Join' : 'Leave',
-                username: usr.username,
-                at: Date.now(),
-              },
+
+              data: usr.active ? 'Join' : 'Leave',
+              message: null,
+              at: Date.now(),
             })
-          )
+            ws.send(
+              JSON.stringify({
+                type: 'event',
+                data: {
+                  event: usr.active ? 'Join' : 'Leave',
+                  username: usr.username,
+                  at: Date.now(),
+                },
+              })
+            )
+          } else if (updatedFields.username != null) {
+            user.username = updatedFields.username
+          }
         }
       }
 
@@ -312,7 +327,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
           )
         }
       }
-    }
+    })
   })
 })
 
