@@ -316,72 +316,85 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
           },
         }
       )
+      await db.collection('messages').insertOne({
+        user: user._id,
+        username: user.username,
+        type: 'event',
+        data: 'Leave',
+        message: null,
+        at: Date.now(),
+      })
       ws.terminate()
     })
   })
 
   for await (const change of awaitDB) {
     wss.clients.forEach(async (ws) => {
-    if (change.operationType == 'update') {
-      if (change.ns.coll == 'users') {
-        let updatedFields = change.updateDescription.updatedFields
-        let usr = await db.collection('users').findOne({
-          _id: new mongodb.ObjectId(change.documentKey._id),
-        })
+      if (change.operationType == 'update') {
+        if (change.ns.coll == 'users') {
+          let updatedFields = change.updateDescription.updatedFields
+          let usr = await db.collection('users').findOne({
+            _id: new mongodb.ObjectId(change.documentKey._id),
+          })
 
-        // If the user is the same as the one that is connected and the session is null
-        // kill it.
-        // Nothing prevents the disconnection when a new token is generated though
-        // if (
-        //   usr._id.toString() == user._id.toString() &&
-        //   usr.session == null
-        // ) {
-        //   ws.send(JSON.stringify({ type: 'logout' }))
-        //   return ws.terminate()
-        // }
+          // If the user is the same as the one that is connected and the session is null
+          // kill it.
+          // Nothing prevents the disconnection when a new token is generated though
+          // if (
+          //   usr._id.toString() == user._id.toString() &&
+          //   usr.session == null
+          // ) {
+          //   ws.send(JSON.stringify({ type: 'logout' }))
+          //   return ws.terminate()
+          // }
 
-        // Join/Leave event
-        if (updatedFields.active != null) {
-          await db.collection('messages').insertOne({
-            user: usr._id,
-            username: usr.username,
-            type: 'event',
-
-            data: usr.active ? 'Join' : 'Leave',
-            message: null,
-            at: Date.now(),
-          }, { bypassDocumentValidation: true })
-          ws.send(
-            JSON.stringify({
+          // Join/Leave event
+          if (updatedFields.active != null) {
+            await db.collection('messages').insertOne({
+              user: usr._id,
+              username: usr.username,
               type: 'event',
-              data: {
-                event: usr.active ? 'Join' : 'Leave',
-                username: usr.username,
-                at: Date.now(),
-              },
+
+              data: usr.active ? 'Join' : 'Leave',
+              message: null,
+              at: Date.now(),
             })
-          )
+          }
         }
       }
-    }
 
-    if (change.operationType == 'insert') {
-      if (change.ns.coll == 'messages') {
-        let message = change.fullDocument
-        if(message.type == 'message') {
-        ws.send(
-          JSON.stringify({
-            type: 'message',
-            data: {
-              username: message.username,
-              message: message.message,
-              at: message.at,
-            },
-          })
-        )}
+      if (change.operationType == 'insert') {
+        if (change.ns.coll == 'messages') {
+          let message = change.fullDocument
+          if (message.type == 'event') {
+            let usr = await db.collection('users').findOne({
+              _id: new mongodb.ObjectId(message.user),
+            })
+            ws.send(
+              JSON.stringify({
+                type: 'event',
+                data: {
+                  event: usr.active ? 'Join' : 'Leave',
+                  username: usr.username,
+                  at: Date.now(),
+                },
+              })
+            )
+          } else if (message.type == 'message') {
+            ws.send(
+              JSON.stringify({
+                type: 'message',
+                data: {
+                  username: message.username,
+                  message: message.message,
+                  at: message.at,
+                },
+              })
+            )
+          }
+        }
       }
-    }
-  })
+    })
   }
 })
 
