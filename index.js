@@ -336,8 +336,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
 
   for await (const change of awaitDB) {
     for(let k = 0; k < wss.clients.size; k++) {
-      if(k != 0) continue;
-      let ws = Array.from(wss.clients)[0]
+      let ws = Array.from(wss.clients)[k]
       if(ws.readyState === WebSocket.OPEN) {
         if (change.operationType == 'update') {
           if (change.ns.coll == 'users') {
