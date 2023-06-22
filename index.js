@@ -238,6 +238,16 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       }
     )
 
+    await db.collection('messages').insertOne({
+      user: user._id,
+      username: user.username,
+      type: 'event',
+
+      data: 'Join',
+      message: null,
+      at: Date.now(),
+    })
+
     ///
     let pingTime = Date.now()
     let pingInterval = setInterval(() => {
@@ -330,18 +340,17 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     })
   })
 
-  let watchSet = new Set();
   for await (const change of awaitDB) {
-    if(!watchSet.has(change._id)) {
+
 
       wss.clients.forEach(async (ws) => {
         if(ws.readyState === WebSocket.OPEN) {
           if (change.operationType == 'update') {
             if (change.ns.coll == 'users') {
-              let updatedFields = change.updateDescription.updatedFields
-              let usr = await db.collection('users').findOne({
-                _id: new mongodb.ObjectId(change.documentKey._id),
-              })
+              // let updatedFields = change.updateDescription.updatedFields
+              // let usr = await db.collection('users').findOne({
+              //   _id: new mongodb.ObjectId(change.documentKey._id),
+              // })
     
               // If the user is the same as the one that is connected and the session is null
               // kill it.
@@ -353,19 +362,6 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
               //   ws.send(JSON.stringify({ type: 'logout' }))
               //   return ws.terminate()
               // }
-    
-              // Join/Leave event
-              if (updatedFields.active != null) {
-                await db.collection('messages').insertOne({
-                  user: usr._id,
-                  username: usr.username,
-                  type: 'event',
-    
-                  data: usr.active ? 'Join' : 'Leave',
-                  message: null,
-                  at: Date.now(),
-                })
-              }
             }
         }
         if (change.operationType == 'insert') {
@@ -402,14 +398,8 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
   
       }
       })
-
-      watchSet.add(change._id)
-
-      setTimeout(() => {
-        watchSet.delete(change._id)
-      }, 60000);
     }
-  }
+
 })
 
 function returnCode(code, messageId, json) {
