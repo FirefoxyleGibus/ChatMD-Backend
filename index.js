@@ -264,7 +264,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       .collection('messages')
       .find({})
       .sort({ at: -1 })
-      .limit(50)
+      .limit(51)
       .toArray()
     let onlinePeople = await db
       .collection('users')
@@ -273,7 +273,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
 
     let arrayMessage = new Array()
     let arrayOnline = new Array()
-    for (let i = 0; i < messages.length; i++) {
+    for (let i = 1; i < messages.length; i++) {
       let obj
       if (messages[i].type == 'message') {
         obj = {
