@@ -229,18 +229,39 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       .sort({ at: -1 })
       .limit(50)
       .toArray()
-    if (messages != null) {
-      let array = new Array()
-      for (let i = 0; i < messages.length; i++) {
-        let obj = {
+    let onlinePeople = await db
+      .collection('users')
+      .find({ active: true })
+      .toArray()
+
+    let arrayMessage = new Array()
+    let arrayOnline = new Array()
+    for (let i = 0; i < messages.length; i++) {
+      let obj
+      if (messages[i].type == 'message') {
+        obj = {
           username: messages[i].username,
+          type: 'message',
           message: messages[i].message,
           at: messages[i].at,
         }
-        array.push(obj)
+      } else if (messages[i].type == 'event') {
+        obj = {
+          username: messages[i].username,
+          event: messages[i].data,
+          at: messages[i].at,
+          type: 'event',
+        }
       }
-      ws.send(JSON.stringify(array))
+      arrayMessage.push(obj)
     }
+    for (let i = 0; i < onlinePeople.length; i++) {
+      let obj = {
+        username: onlinePeople[i].username,
+      }
+      arrayOnline.push(obj)
+    }
+    ws.send(JSON.stringify({ online: arrayOnline, messages: arrayMessage }))
 
     ws.on('message', async (data) => {
       let now = Date.now()
