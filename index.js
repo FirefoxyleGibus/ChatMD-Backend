@@ -237,7 +237,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         },
       }
     )
-    
+
     let pingTime = Date.now()
     let pingInterval = setInterval(() => {
       ws.ping()
@@ -289,7 +289,6 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     }
     ws.send(JSON.stringify({ online: arrayOnline, messages: arrayMessage }))
 
-
     await db.collection('messages').insertOne({
       user: user._id,
       username: user.username,
@@ -300,7 +299,6 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       at: Date.now(),
     })
     ///
-
 
     ws.on('message', async (data) => {
       data = trim(data)
@@ -343,28 +341,25 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
   })
 
   for await (const change of awaitDB) {
-
-
-      wss.clients.forEach(async (ws) => {
-        if(ws.readyState === WebSocket.OPEN) {
-          if (change.operationType == 'update') {
-            if (change.ns.coll == 'users') {
-              // let updatedFields = change.updateDescription.updatedFields
-              // let usr = await db.collection('users').findOne({
-              //   _id: new mongodb.ObjectId(change.documentKey._id),
-              // })
-    
-              // If the user is the same as the one that is connected and the session is null
-              // kill it.
-              // Nothing prevents the disconnection when a new token is generated though
-              // if (
-              //   usr._id.toString() == user._id.toString() &&
-              //   usr.session == null
-              // ) {
-              //   ws.send(JSON.stringify({ type: 'logout' }))
-              //   return ws.terminate()
-              // }
-            }
+    wss.clients.forEach(async (ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        if (change.operationType == 'update') {
+          if (change.ns.coll == 'users') {
+            // let updatedFields = change.updateDescription.updatedFields
+            // let usr = await db.collection('users').findOne({
+            //   _id: new mongodb.ObjectId(change.documentKey._id),
+            // })
+            // If the user is the same as the one that is connected and the session is null
+            // kill it.
+            // Nothing prevents the disconnection when a new token is generated though
+            // if (
+            //   usr._id.toString() == user._id.toString() &&
+            //   usr.session == null
+            // ) {
+            //   ws.send(JSON.stringify({ type: 'logout' }))
+            //   return ws.terminate()
+            // }
+          }
         }
         if (change.operationType == 'insert') {
           if (change.ns.coll == 'messages') {
@@ -397,11 +392,9 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
             }
           }
         }
-  
       }
-      })
-    }
-
+    })
+  }
 })
 
 function returnCode(code, messageId, json) {
