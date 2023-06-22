@@ -237,7 +237,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         },
       }
     )
-    ///
+
     let pingTime = Date.now()
     let pingInterval = setInterval(() => {
       ws.ping()
@@ -289,6 +289,17 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     }
     ws.send(JSON.stringify({ online: arrayOnline, messages: arrayMessage }))
 
+    await db.collection('messages').insertOne({
+      user: user._id,
+      username: user.username,
+      type: 'event',
+
+      data: 'Join',
+      message: null,
+      at: Date.now(),
+    })
+    ///
+
     ws.on('message', async (data) => {
       data = trim(data)
       if (data.length != 0) {
@@ -324,73 +335,61 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         message: null,
         at: Date.now(),
       })
+
       ws.terminate()
     })
   })
 
   for await (const change of awaitDB) {
     wss.clients.forEach(async (ws) => {
-      if (change.operationType == 'update') {
-        if (change.ns.coll == 'users') {
-          let updatedFields = change.updateDescription.updatedFields
-          let usr = await db.collection('users').findOne({
-            _id: new mongodb.ObjectId(change.documentKey._id),
-          })
-
-          // If the user is the same as the one that is connected and the session is null
-          // kill it.
-          // Nothing prevents the disconnection when a new token is generated though
-          // if (
-          //   usr._id.toString() == user._id.toString() &&
-          //   usr.session == null
-          // ) {
-          //   ws.send(JSON.stringify({ type: 'logout' }))
-          //   return ws.terminate()
-          // }
-
-          // Join/Leave event
-          if (updatedFields.active != null) {
-            await db.collection('messages').insertOne({
-              user: usr._id,
-              username: usr.username,
-              type: 'event',
-
-              data: usr.active ? 'Join' : 'Leave',
-              message: null,
-              at: Date.now(),
-            })
+      if (ws.readyState === WebSocket.OPEN) {
+        if (change.operationType == 'update') {
+          if (change.ns.coll == 'users') {
+            // let updatedFields = change.updateDescription.updatedFields
+            // let usr = await db.collection('users').findOne({
+            //   _id: new mongodb.ObjectId(change.documentKey._id),
+            // })
+            // If the user is the same as the one that is connected and the session is null
+            // kill it.
+            // Nothing prevents the disconnection when a new token is generated though
+            // if (
+            //   usr._id.toString() == user._id.toString() &&
+            //   usr.session == null
+            // ) {
+            //   ws.send(JSON.stringify({ type: 'logout' }))
+            //   return ws.terminate()
+            // }
           }
         }
-      }
-
-      if (change.operationType == 'insert') {
-        if (change.ns.coll == 'messages') {
-          let message = change.fullDocument
-          if (message.type == 'event') {
-            let usr = await db.collection('users').findOne({
-              _id: new mongodb.ObjectId(message.user),
-            })
-            ws.send(
-              JSON.stringify({
-                type: 'event',
-                data: {
-                  event: usr.active ? 'Join' : 'Leave',
-                  username: usr.username,
-                  at: Date.now(),
-                },
+        if (change.operationType == 'insert') {
+          if (change.ns.coll == 'messages') {
+            let message = change.fullDocument
+            if (message.type == 'event') {
+              let usr = await db.collection('users').findOne({
+                _id: new mongodb.ObjectId(message.user),
               })
-            )
-          } else if (message.type == 'message') {
-            ws.send(
-              JSON.stringify({
-                type: 'message',
-                data: {
-                  username: message.username,
-                  message: message.message,
-                  at: message.at,
-                },
-              })
-            )
+              ws.send(
+                JSON.stringify({
+                  type: 'event',
+                  data: {
+                    event: usr.active ? 'Join' : 'Leave',
+                    username: usr.username,
+                    at: Date.now(),
+                  },
+                })
+              )
+            } else if (message.type == 'message') {
+              ws.send(
+                JSON.stringify({
+                  type: 'message',
+                  data: {
+                    username: message.username,
+                    message: message.message,
+                    at: message.at,
+                  },
+                })
+              )
+            }
           }
         }
       }
