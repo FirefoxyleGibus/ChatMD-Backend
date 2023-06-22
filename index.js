@@ -247,6 +247,8 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       await db.collection('messages').insertOne({
         user: user._id,
         username: user.username,
+          type: 'message',
+          data: null,
         message: data.toString(),
         at: now,
       })
