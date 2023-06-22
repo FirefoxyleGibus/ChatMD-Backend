@@ -336,37 +336,39 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
 
   for await (const change of awaitDB) {
     userSet.forEach(async (ws) => {
-      if (change.operationType == 'update') {
-        if (change.ns.coll == 'users') {
-          let updatedFields = change.updateDescription.updatedFields
-          let usr = await db.collection('users').findOne({
-            _id: new mongodb.ObjectId(change.documentKey._id),
-          })
-
-          // If the user is the same as the one that is connected and the session is null
-          // kill it.
-          // Nothing prevents the disconnection when a new token is generated though
-          // if (
-          //   usr._id.toString() == user._id.toString() &&
-          //   usr.session == null
-          // ) {
-          //   ws.send(JSON.stringify({ type: 'logout' }))
-          //   return ws.terminate()
-          // }
-
-          // Join/Leave event
-          if (updatedFields.active != null) {
-            await db.collection('messages').insertOne({
-              user: usr._id,
-              username: usr.username,
-              type: 'event',
-
-              data: usr.active ? 'Join' : 'Leave',
-              message: null,
-              at: Date.now(),
+      if(ws.readyState === WebSocket.OPEN) {
+        if (change.operationType == 'update') {
+          if (change.ns.coll == 'users') {
+            let updatedFields = change.updateDescription.updatedFields
+            let usr = await db.collection('users').findOne({
+              _id: new mongodb.ObjectId(change.documentKey._id),
             })
+  
+            // If the user is the same as the one that is connected and the session is null
+            // kill it.
+            // Nothing prevents the disconnection when a new token is generated though
+            // if (
+            //   usr._id.toString() == user._id.toString() &&
+            //   usr.session == null
+            // ) {
+            //   ws.send(JSON.stringify({ type: 'logout' }))
+            //   return ws.terminate()
+            // }
+  
+            // Join/Leave event
+            if (updatedFields.active != null) {
+              await db.collection('messages').insertOne({
+                user: usr._id,
+                username: usr.username,
+                type: 'event',
+  
+                data: usr.active ? 'Join' : 'Leave',
+                message: null,
+                at: Date.now(),
+              })
+            }
           }
-        }
+      }
       }
 
       if (change.operationType == 'insert') {
