@@ -27,6 +27,8 @@ const argon2 = require('argon2')
 const WebSocket = require('ws')
 const wss = new WebSocket.Server({ port: process.env.WS_PORT })
 const mongodb = require('mongodb')
+const { clearInterval } = require('timers')
+const { trim } = require('lodash')
 const mongo = new mongodb.MongoClient(process.env.DB_ADDRESS, {
   useNewUrlParser: true,
 })
@@ -61,6 +63,10 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
 
+    username = trim(username)
+    if (username.length == 0)
+      return res.status(401).json(returnCode(401, 'Username cannot be empty'))
+
     let user = await db.collection('users').findOne({
       username: username,
     })
@@ -92,6 +98,10 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     let password = req.fields.password
     if (username == null || password == null)
       return res.status(401).json(returnCode(401, 2))
+
+    username = trim(username)
+    if (username.length == 0)
+      return res.status(401).json(returnCode(401, 'Username cannot be empty'))
 
     let user = await db.collection('users').findOne({
       username: username,
@@ -126,6 +136,10 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     if (session == null) return res.status(401).json(returnCode(401, 0))
 
     let new_username = req.fields.username
+
+    new_username = trim(new_username)
+    if (new_username.length == 0)
+      return res.status(401).json(returnCode(401, 'Username cannot be empty'))
 
     let usr = await db.collection('users').findOne({
       session: session,
@@ -276,15 +290,18 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
     ws.send(JSON.stringify({ online: arrayOnline, messages: arrayMessage }))
 
     ws.on('message', async (data) => {
-      let now = Date.now()
-      await db.collection('messages').insertOne({
-        user: user._id,
-        username: user.username,
+      data = trim(data)
+      if (data.length != 0) {
+        let now = Date.now()
+        await db.collection('messages').insertOne({
+          user: user._id,
+          username: user.username,
           type: 'message',
           data: null,
-        message: data.toString(),
-        at: now,
-      })
+          message: data.toString(),
+          at: now,
+        })
+      }
     })
 
     ws.on('close', async () => {
