@@ -237,18 +237,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
         },
       }
     )
-
-    await db.collection('messages').insertOne({
-      user: user._id,
-      username: user.username,
-      type: 'event',
-
-      data: 'Join',
-      message: null,
-      at: Date.now(),
-    })
-
-    ///
+    
     let pingTime = Date.now()
     let pingInterval = setInterval(() => {
       ws.ping()
@@ -264,7 +253,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       .collection('messages')
       .find({})
       .sort({ at: -1 })
-      .limit(51)
+      .limit(50)
       .toArray()
     let onlinePeople = await db
       .collection('users')
@@ -273,7 +262,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
 
     let arrayMessage = new Array()
     let arrayOnline = new Array()
-    for (let i = 1; i < messages.length; i++) {
+    for (let i = 0; i < messages.length; i++) {
       let obj
       if (messages[i].type == 'message') {
         obj = {
@@ -299,6 +288,19 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       arrayOnline.push(obj)
     }
     ws.send(JSON.stringify({ online: arrayOnline, messages: arrayMessage }))
+
+
+    await db.collection('messages').insertOne({
+      user: user._id,
+      username: user.username,
+      type: 'event',
+
+      data: 'Join',
+      message: null,
+      at: Date.now(),
+    })
+    ///
+
 
     ws.on('message', async (data) => {
       data = trim(data)
