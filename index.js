@@ -84,7 +84,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       active: false,
     })
 
-    res.status(200).json(returnCode(200, 200, { session: token }))
+    return res.status(200).json(returnCode(200, 200, { session: token }))
   })
 
   // [POST] Login
@@ -125,7 +125,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       }
     )
 
-    res.status(200).json(returnCode(200, 200, { session: token }))
+    return res.status(200).json(returnCode(200, 200, { session: token }))
   })
 
   // [PUT] Update username
@@ -176,7 +176,7 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       }
     )
 
-    res.status(200).json(returnCode(200, 200))
+    return res.status(200).json(returnCode(200, 200))
   })
 
   // [DELETE] Logout
@@ -203,11 +203,11 @@ http.listen(Number(process.env.HTTP_PORT), async () => {
       }
     )
 
-    res.status(200).json(returnCode(200, 200))
+    return res.status(200).json(returnCode(200, 200))
   })
 
   app.all('*', (_, res) => {
-    res.status(404).json(returnCode(404, 'you got lost man :/'))
+    return res.status(404).json(returnCode(404, 'you got lost man :/'))
   })
 
   // WebSocket
